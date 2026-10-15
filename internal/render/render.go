@@ -14,8 +14,9 @@ import (
 
 // Render returns the full output: the header, a blank line, then one row per
 // node below root, or "no changes" if there is nothing to show. Rows are
-// fitted to a terminal of the given width.
-func Render(label string, root *tree.Node, termWidth int) string {
+// fitted to a terminal of the given width. With color, bars and counts are
+// green for added lines and red for deleted lines.
+func Render(label string, root *tree.Node, termWidth int, color bool) string {
 	var b strings.Builder
 	b.WriteString(Header(label, root))
 	b.WriteString("\n\n")
@@ -45,9 +46,15 @@ func Render(label string, root *tree.Node, termWidth int) string {
 	}
 	barW := min(max(termWidth-nameW-rest, minBarWidth), maxBarWidth)
 	for _, r := range rows {
+		bar, add, del := Bar(Eighths(r.node.Churn(), maxChurn, barW)), r.add, r.del
+		// Pad by the plain text so SGR codes don't count toward widths.
+		barPad, addPad, delPad := pad(bar, barW), pad(add, addW), pad(del, delW)
+		if color {
+			bar, add, del = colorBar(bar, r.node.Added, r.node.Churn()), paint(green, add), paint(red, del)
+		}
 		b.WriteString(padRight(truncate(r.prefix, r.label, nameW), nameW))
-		b.WriteString("  " + padRight(Bar(Eighths(r.node.Churn(), maxChurn, barW)), barW))
-		b.WriteString("  " + padLeft(r.add, addW) + " " + padLeft(r.del, delW))
+		b.WriteString("  " + bar + barPad)
+		b.WriteString("  " + addPad + add + " " + delPad + del)
 		b.WriteString("  " + padLeft(r.files, filesW))
 		b.WriteString("  " + padLeft(r.pct, pctW))
 		b.WriteString("\n")
@@ -130,6 +137,9 @@ func truncate(prefix, label string, w int) string {
 
 func width(s string) int { return utf8.RuneCountInString(s) }
 
-func padRight(s string, w int) string { return s + strings.Repeat(" ", max(0, w-width(s))) }
+// pad returns the spaces needed to pad s to w cells.
+func pad(s string, w int) string { return strings.Repeat(" ", max(0, w-width(s))) }
 
-func padLeft(s string, w int) string { return strings.Repeat(" ", max(0, w-width(s))) + s }
+func padRight(s string, w int) string { return s + pad(s, w) }
+
+func padLeft(s string, w int) string { return pad(s, w) + s }

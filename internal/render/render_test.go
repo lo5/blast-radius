@@ -2,6 +2,7 @@ package render
 
 import (
 	"flag"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -62,7 +63,7 @@ func renderTree() *tree.Node {
 }
 
 func TestRender(t *testing.T) {
-	got := Render("working tree vs HEAD", renderTree(), 100)
+	got := Render("working tree vs HEAD", renderTree(), 100, false)
 	want := `working tree vs HEAD · 5 files · +1,030 -393
 
 src/             ████████████████████████████████████████  +1,025 -390  3 files  99%
@@ -84,7 +85,7 @@ go.mod           ▎                                             +4   -3   1 fil
 // A narrow terminal caps the name column at 40% of the width, truncates
 // names but keeps tree prefixes, and keeps the minimum bar width.
 func TestRenderNarrow(t *testing.T) {
-	got := Render("working tree vs HEAD", renderTree(), 30)
+	got := Render("working tree vs HEAD", renderTree(), 30, false)
 	want := `working tree vs HEAD · 5 files · +1,030 -393
 
 src/          ██████████  +1,025 -390  3 files  99%
@@ -109,7 +110,7 @@ func TestRenderBarWidth(t *testing.T) {
 	// Without its bar, a row is 27 wide: name column "└─ x", "+1 -0",
 	// "1 file", "100%" and four separators.
 	for termWidth, want := range map[int]int{20: 10, 37: 10, 38: 11, 45: 18, 66: 39, 67: 40, 200: 40} {
-		out := Render("l", root, termWidth)
+		out := Render("l", root, termWidth, false)
 		row := strings.Split(out, "\n")[2]
 		if got := width(row) - 27; got != want {
 			t.Errorf("width %d: bar width %d, want %d\n%s", termWidth, got, want, row)
@@ -118,7 +119,7 @@ func TestRenderBarWidth(t *testing.T) {
 }
 
 func TestRenderNoChanges(t *testing.T) {
-	got := Render("working tree vs HEAD", tree.Build(nil), 100)
+	got := Render("working tree vs HEAD", tree.Build(nil), 100, false)
 	want := "working tree vs HEAD · 0 files · +0 -0\n\nno changes\n"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
@@ -173,5 +174,82 @@ func TestTruncate(t *testing.T) {
 		if got := truncate(tt.prefix, tt.label, tt.w); got != tt.want {
 			t.Errorf("truncate(%q, %q, %d) = %q, want %q", tt.prefix, tt.label, tt.w, got, tt.want)
 		}
+	}
+}
+
+func TestGreenCells(t *testing.T) {
+	tests := []struct {
+		n, added, churn, want int
+	}{
+		{10, 10, 10, 10}, // all added
+		{10, 0, 10, 0},   // all deleted
+		{10, 5, 10, 5},
+		{10, 1, 3, 3},  // 3.33 rounds down
+		{10, 2, 3, 7},  // 6.67 rounds up
+		{1, 1, 2, 1},   // 0.5 rounds up: a one-cell bar goes green
+		{3, 1, 6, 1},   // 0.5 rounds up
+		{1, 1, 3, 0},   // 0.33 rounds down
+		{4, 1, 100, 0}, // a sliver of added lines gets no cell
+		{0, 1, 1, 0},
+		{5, 0, 0, 0},
+	}
+	for _, tt := range tests {
+		if got := GreenCells(tt.n, tt.added, tt.churn); got != tt.want {
+			t.Errorf("GreenCells(%d, %d, %d) = %d, want %d", tt.n, tt.added, tt.churn, got, tt.want)
+		}
+	}
+}
+
+func TestColorBar(t *testing.T) {
+	const g, r, end = "\x1b[32m", "\x1b[31m", "\x1b[0m"
+	tests := []struct {
+		bar          string
+		added, churn int
+		want         string
+	}{
+		{"███▍", 1, 2, g + "██" + end + r + "█▍" + end},
+		{"███▍", 3, 4, g + "███" + end + r + "▍" + end},
+		{"███▍", 4, 4, g + "███▍" + end}, // the partial cell takes its side's color
+		{"███▍", 0, 4, r + "███▍" + end},
+		{"▏", 1, 1, g + "▏" + end},
+		{"", 0, 0, ""},
+	}
+	for _, tt := range tests {
+		if got := colorBar(tt.bar, tt.added, tt.churn); got != tt.want {
+			t.Errorf("colorBar(%q, %d, %d) = %q, want %q", tt.bar, tt.added, tt.churn, got, tt.want)
+		}
+	}
+}
+
+func TestUseColor(t *testing.T) {
+	tests := []struct {
+		mode    string
+		tty     bool
+		noColor string
+		want    bool
+	}{
+		{"auto", true, "", true},
+		{"auto", true, "1", false},
+		{"auto", false, "", false},
+		{"always", false, "1", true}, // NO_COLOR doesn't override always
+		{"never", true, "", false},
+	}
+	for _, tt := range tests {
+		if got := UseColor(tt.mode, tt.tty, tt.noColor); got != tt.want {
+			t.Errorf("UseColor(%q, %v, %q) = %v, want %v", tt.mode, tt.tty, tt.noColor, got, tt.want)
+		}
+	}
+}
+
+// With color, padding counts cells, so colored rows line up with plain ones.
+func TestRenderColor(t *testing.T) {
+	plain := Render("l", renderTree(), 100, false)
+	colored := Render("l", renderTree(), 100, true)
+	if !strings.Contains(colored, "\x1b[32m+1,025\x1b[0m \x1b[31m-390\x1b[0m") {
+		t.Errorf("counts not colored:\n%s", colored)
+	}
+	stripped := regexp.MustCompile("\x1b\\[[0-9]+m").ReplaceAllString(colored, "")
+	if stripped != plain {
+		t.Errorf("colored output without SGR codes differs from plain:\n%s\nwant:\n%s", stripped, plain)
 	}
 }

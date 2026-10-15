@@ -281,8 +281,9 @@ Columns, separated by two spaces:
 - `auto`: use color only if stdout is a TTY and `NO_COLOR` is unset or empty.
   `always` and `never` override this. `NO_COLOR` doesn't override `always`.
 - Use only two colors. Green (SGR 32) for the added part of the bar and the
-  `+N` count; red (SGR 31) for the deleted part and the `-N` count. Everything
-  else stays the default color.
+  `+N` count; red (SGR 31) for the deleted part and the `-N` count, including
+  `+0` and `-0`. Each colored run ends with a reset (SGR 0). Everything else
+  stays the default color. Padding counts cells, not escape codes.
 - To split a bar into colors, let n be the number of cells drawn, counting a
   partial cell as one. The first `round(n × added / churn)` cells are green and
   the rest are red. The partial cell, if any, takes the color of whichever side

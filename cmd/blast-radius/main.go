@@ -28,7 +28,7 @@ func main() {
 func run(args []string, stdout, stderr io.Writer, env []string) int {
 	fs := flag.NewFlagSet("blast-radius", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	fs.String("color", "auto", "use color: auto, always or never")
+	color := fs.String("color", "auto", "use color: auto, always or never")
 	depth := fs.Int("depth", 3, "maximum tree levels to show; 0 = unlimited")
 	files := fs.Bool("files", false, "show individual files")
 	sortBy := fs.String("sort", "churn", "sort siblings by churn or name")
@@ -52,6 +52,9 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 	if *sortBy != "churn" && *sortBy != "name" {
 		return usageError("invalid --sort %q: must be churn or name", *sortBy)
 	}
+	if *color != "auto" && *color != "always" && *color != "never" {
+		return usageError("invalid --color %q: must be auto, always or never", *color)
+	}
 
 	diff, err := gitdiff.Uncommitted(gitdiff.Git{Env: env}, nil)
 	if err != nil {
@@ -60,15 +63,16 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 	}
 	root := tree.Build(diff.Files)
 	tree.Shape(root, tree.Options{Files: *files, ByName: *sortBy == "name", Depth: *depth})
-	io.WriteString(stdout, render.Render(diff.Label, root, termWidth(stdout, env)))
+	useColor := render.UseColor(*color, isTerminal(stdout), getenv(env, "NO_COLOR"))
+	io.WriteString(stdout, render.Render(diff.Label, root, termWidth(stdout, env), useColor))
 	return 0
 }
 
 // termWidth returns the terminal width: from stdout if it is a terminal,
 // else from $COLUMNS, else 80.
 func termWidth(stdout io.Writer, env []string) int {
-	if f, ok := stdout.(*os.File); ok && term.IsTerminal(int(f.Fd())) {
-		if w, _, err := term.GetSize(int(f.Fd())); err == nil && w > 0 {
+	if isTerminal(stdout) {
+		if w, _, err := term.GetSize(int(stdout.(*os.File).Fd())); err == nil && w > 0 {
 			return w
 		}
 	}
@@ -76,6 +80,12 @@ func termWidth(stdout io.Writer, env []string) int {
 		return w
 	}
 	return 80
+}
+
+// isTerminal reports whether w is a terminal.
+func isTerminal(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	return ok && term.IsTerminal(int(f.Fd()))
 }
 
 // getenv returns the last value of key in env, or "".

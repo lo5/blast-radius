@@ -226,6 +226,7 @@ func TestBadFlagValues(t *testing.T) {
 		{[]string{"--sort", "size"}, `blast-radius: invalid --sort "size": must be churn or name`},
 		{[]string{"--depth", "-1"}, "blast-radius: invalid --depth -1: must be 0 or more"},
 		{[]string{"--depth", "x"}, `invalid value "x" for flag -depth`},
+		{[]string{"--color", "yes"}, `blast-radius: invalid --color "yes": must be auto, always or never`},
 	} {
 		var stdout, stderr bytes.Buffer
 		code := run(tt.args, &stdout, &stderr, nil)
@@ -233,6 +234,29 @@ func TestBadFlagValues(t *testing.T) {
 			!strings.Contains(stderr.String(), "-sort") {
 			t.Errorf("%v: exit %d, stdout %q, stderr %q", tt.args, code, stdout.String(), stderr.String())
 		}
+	}
+}
+
+// --color=always colors bars and counts, even with NO_COLOR set.
+func TestColorAlways(t *testing.T) {
+	dir := newRepo(t)
+	write(t, dir, "src/api/api.go", lines("api", 100))
+	write(t, dir, "src/core/core.go", lines("core", 100))
+	write(t, dir, "docs/guide.md", lines("guide", 40))
+	commitAll(t, dir, "initial")
+	write(t, dir, "src/api/api.go", lines("api", 100)+lines("new", 120))  // added only
+	write(t, dir, "src/core/core.go", lines("core", 30)+lines("new", 10)) // mostly deleted
+	write(t, dir, "docs/guide.md", "")                                    // deleted only
+	env := append(testEnv(t), "NO_COLOR=1")
+	golden(t, "color-always", runCLIEnv(t, dir, env, "--color=always"))
+}
+
+// Piped output stays plain under the default --color=auto.
+func TestColorAutoPiped(t *testing.T) {
+	t.Chdir(shapeRepo(t))
+	var stdout, stderr bytes.Buffer
+	if code := run(nil, &stdout, &stderr, testEnv(t)); code != 0 || strings.Contains(stdout.String(), "\x1b") {
+		t.Errorf("exit %d, stdout %q, stderr %q", code, stdout.String(), stderr.String())
 	}
 }
 
