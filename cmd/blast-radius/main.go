@@ -85,10 +85,14 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 	for _, w := range diff.Warnings {
 		fmt.Fprintf(stderr, "blast-radius: warning: %s\n", w)
 	}
+	label := diff.Label
+	if diff.Range {
+		label += " · " + render.Plural(diff.Commits, "commit")
+	}
 	root := tree.Build(diff.Files)
 	tree.Shape(root, tree.Options{Files: *files, ByName: *sortBy == "name", Depth: *depth})
 	useColor := render.UseColor(*color, isTerminal(stdout), getenv(env, "NO_COLOR"))
-	io.WriteString(stdout, render.Render(diff.Label, diff.Subject, root, termWidth(stdout, env), useColor))
+	io.WriteString(stdout, render.Render(label, diff.Subject, root, termWidth(stdout, env), useColor))
 	return 0
 }
 

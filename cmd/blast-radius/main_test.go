@@ -267,6 +267,17 @@ func TestMovedFile(t *testing.T) {
 	golden(t, "commit-move", runCLI(t, historyRepo(t), "HEAD", "--files"))
 }
 
+// A..B compares the two endpoints and counts the commits in B not in A.
+func TestRange(t *testing.T) {
+	golden(t, "range", runCLI(t, historyRepo(t), "edit..feature"))
+}
+
+// A...B compares merge-base(A, B) to B and counts only B's side: one commit
+// here, where the symmetric difference would count three.
+func TestRangeMergeBase(t *testing.T) {
+	golden(t, "range-merge-base", runCLI(t, historyRepo(t), "feature...edit", "--files"))
+}
+
 func TestBadRevision(t *testing.T) {
 	golden(t, "bad-revision", runCLI(t, historyRepo(t), "foo"))
 }
@@ -283,6 +294,11 @@ func TestRevisionArgs(t *testing.T) {
 		{[]string{"src"}, 2, "blast-radius: 'src' is not a revision (use '-- src' to filter by path)\n"},
 		{[]string{"HEAD", "--", "src", "--files"}, 0, ""}, // everything after -- is a pathspec
 		{[]string{"--", "HEAD", "foo"}, 0, ""},
+		{[]string{"HEAD~1.."}, 0, ""},
+		{[]string{"...edit"}, 0, ""},
+		{[]string{"root..nope"}, 2, "blast-radius: 'root..nope' is not a revision (use '-- root..nope' to filter by path)\n"},
+		{[]string{"../src"}, 2, "blast-radius: '../src' is not a revision (use '-- ../src' to filter by path)\n"},
+		{[]string{"root^{tree}..HEAD"}, 2, "blast-radius: 'root^{tree}..HEAD' is not a revision"},
 	} {
 		t.Chdir(dir)
 		var stdout, stderr bytes.Buffer

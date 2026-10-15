@@ -157,6 +157,11 @@ as a tree, is a non-revision argument.
 - Any argument containing `..` is a range. Pass it straight to `git diff`.
   `A..B` compares the two endpoints; `A...B` compares `merge-base(A,B)` to `B`.
   An empty side defaults to `HEAD`, as in git.
+- Each side (split at the first `...` or `..`) is checked with
+  `git rev-parse --verify --quiet <side>^{commit}`. If either fails, the whole
+  argument is a non-revision argument (§4, exit 2), so a path such as `../src`
+  gets the `use '-- ../src'` hint. As in §5.2, not being in a repository is
+  reported first (exit 1).
 - Commit count for the header:
   - `A..B`: `git rev-list --count A..B`.
   - `A...B`: `git rev-list --count $(git merge-base A B)..B`. Don't use

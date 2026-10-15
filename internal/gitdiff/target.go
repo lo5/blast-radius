@@ -1,17 +1,20 @@
 package gitdiff
 
 import (
-	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
 // Diff is what blast-radius measures: a header label and per-file line counts.
-// Subject is the commit subject for a single commit, else empty.
+// Subject is the commit subject for a single commit, else empty. Range is
+// set for commit ranges, and Commits is then the number of commits in it.
 // Warnings are non-fatal problems, such as untracked files that can't be read.
 type Diff struct {
 	Label    string
 	Subject  string
+	Range    bool
+	Commits  int
 	Files    []FileStat
 	Warnings []string
 }
@@ -47,7 +50,7 @@ func (e NotRevisionError) Error() string {
 }
 
 // Measure returns the diff that arg asks for: uncommitted changes when arg is
-// empty, else a single commit.
+// empty, a range when it contains "..", else a single commit.
 func Measure(g Git, arg string, pathspecs []string) (Diff, error) {
 	switch Classify(arg) {
 	case KindUncommitted:
@@ -55,7 +58,7 @@ func Measure(g Git, arg string, pathspecs []string) (Diff, error) {
 	case KindCommit:
 		return Commit(g, arg, pathspecs)
 	}
-	return Diff{}, errors.New("commit ranges are not supported yet")
+	return Range(g, arg, pathspecs)
 }
 
 // Uncommitted measures staged, unstaged and untracked changes against HEAD,
@@ -111,4 +114,48 @@ func Commit(g Git, rev string, pathspecs []string) (Diff, error) {
 	}
 	label, subject, _ := strings.Cut(strings.TrimRight(string(out), "\n"), " ")
 	return Diff{Label: label, Subject: subject, Files: files}, nil
+}
+
+// Range measures a commit range, A..B or A...B, passed to git diff as typed.
+// An empty side means HEAD, as in git. It returns a NotRevisionError if
+// either side isn't a commit.
+func Range(g Git, arg string, pathspecs []string) (Diff, error) {
+	if _, err := g.RepoRoot(); err != nil { // not a repo: git's message, not ours
+		return Diff{}, err
+	}
+	sep := ".."
+	if Classify(arg) == KindMergeBase {
+		sep = "..."
+	}
+	a, b, _ := strings.Cut(arg, sep)
+	for _, side := range []*string{&a, &b} {
+		if *side == "" {
+			*side = "HEAD"
+		}
+		if _, err := g.Run("rev-parse", "--verify", "--quiet", *side+"^{commit}"); err != nil {
+			return Diff{}, NotRevisionError{arg}
+		}
+	}
+	files, err := g.diff([]string{arg}, pathspecs)
+	if err != nil {
+		return Diff{}, err
+	}
+	// Count the commits on B's side only: rev-list A...B would also count A's.
+	count := arg
+	if sep == "..." {
+		out, err := g.Run("merge-base", a, b)
+		if err != nil {
+			return Diff{}, err
+		}
+		count = strings.TrimSpace(string(out)) + ".." + b
+	}
+	out, err := g.Run("rev-list", "--count", count)
+	if err != nil {
+		return Diff{}, err
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil {
+		return Diff{}, fmt.Errorf("git rev-list --count: %w", err)
+	}
+	return Diff{Label: arg, Range: true, Commits: n, Files: files}, nil
 }
