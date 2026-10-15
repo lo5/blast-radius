@@ -63,7 +63,7 @@ func renderTree() *tree.Node {
 }
 
 func TestRender(t *testing.T) {
-	got := Render("working tree vs HEAD", renderTree(), 100, false)
+	got := Render("working tree vs HEAD", "", renderTree(), 100, false)
 	want := `working tree vs HEAD · 5 files · +1,030 -393
 
 src/             ████████████████████████████████████████  +1,025 -390  3 files  99%
@@ -85,7 +85,7 @@ go.mod           ▎                                             +4   -3   1 fil
 // A narrow terminal caps the name column at 40% of the width, truncates
 // names but keeps tree prefixes, and keeps the minimum bar width.
 func TestRenderNarrow(t *testing.T) {
-	got := Render("working tree vs HEAD", renderTree(), 30, false)
+	got := Render("working tree vs HEAD", "", renderTree(), 30, false)
 	want := `working tree vs HEAD · 5 files · +1,030 -393
 
 src/          ██████████  +1,025 -390  3 files  99%
@@ -110,7 +110,7 @@ func TestRenderBarWidth(t *testing.T) {
 	// Without its bar, a row is 27 wide: name column "└─ x", "+1 -0",
 	// "1 file", "100%" and four separators.
 	for termWidth, want := range map[int]int{20: 10, 37: 10, 38: 11, 45: 18, 66: 39, 67: 40, 200: 40} {
-		out := Render("l", root, termWidth, false)
+		out := Render("l", "", root, termWidth, false)
 		row := strings.Split(out, "\n")[2]
 		if got := width(row) - 27; got != want {
 			t.Errorf("width %d: bar width %d, want %d\n%s", termWidth, got, want, row)
@@ -119,10 +119,31 @@ func TestRenderBarWidth(t *testing.T) {
 }
 
 func TestRenderNoChanges(t *testing.T) {
-	got := Render("working tree vs HEAD", tree.Build(nil), 100, false)
+	got := Render("working tree vs HEAD", "", tree.Build(nil), 100, false)
 	want := "working tree vs HEAD · 0 files · +0 -0\n\nno changes\n"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// Header labels: uncommitted, and a commit whose subject is trimmed to fit.
+func TestHeader(t *testing.T) {
+	root := tree.Build([]tree.FileStat{{Path: "a.go", Added: 1200, Deleted: 3}})
+	for _, tt := range []struct {
+		label, subject string
+		width          int
+		want           string
+	}{
+		{"working tree vs HEAD", "", 10, "working tree vs HEAD · 1 file · +1,200 -3"},
+		{"abc1234", "Fix the parser", 80, "abc1234 Fix the parser · 1 file · +1,200 -3"},
+		{"abc1234", "Fix the parser", 43, "abc1234 Fix the parser · 1 file · +1,200 -3"},
+		{"abc1234", "Fix the parser", 42, "abc1234 Fix the pars… · 1 file · +1,200 -3"},
+		{"abc1234", "Fix the parser", 30, "abc1234 … · 1 file · +1,200 -3"},
+		{"abc1234", "Fix the parser", 10, "abc1234 … · 1 file · +1,200 -3"},
+	} {
+		if got := Header(tt.label, tt.subject, root, tt.width); got != tt.want {
+			t.Errorf("Header(%q, %q, %d) = %q, want %q", tt.label, tt.subject, tt.width, got, tt.want)
+		}
 	}
 }
 
@@ -243,8 +264,8 @@ func TestUseColor(t *testing.T) {
 
 // With color, padding counts cells, so colored rows line up with plain ones.
 func TestRenderColor(t *testing.T) {
-	plain := Render("l", renderTree(), 100, false)
-	colored := Render("l", renderTree(), 100, true)
+	plain := Render("l", "", renderTree(), 100, false)
+	colored := Render("l", "", renderTree(), 100, true)
 	if !strings.Contains(colored, "\x1b[32m+1,025\x1b[0m \x1b[31m-390\x1b[0m") {
 		t.Errorf("counts not colored:\n%s", colored)
 	}

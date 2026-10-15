@@ -210,10 +210,94 @@ func TestGitNotFound(t *testing.T) {
 	}
 }
 
-func TestUnexpectedArgument(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	if code := run([]string{"foo"}, &stdout, &stderr, nil); code != 2 || stdout.Len() != 0 {
-		t.Errorf("exit %d, stdout %q", code, stdout.String())
+// historyRepo returns a repo whose history has a root commit, an ordinary
+// commit with a long subject, a merge and a move:
+//
+//	root -- edit --------- merge -- move   (main)
+//	          \           /
+//	           feat1 -- feat2              (feature)
+func historyRepo(t *testing.T) string {
+	t.Helper()
+	dir := newRepo(t)
+	write(t, dir, "README.md", lines("readme", 10))
+	write(t, dir, "src/core/core.go", lines("core", 40))
+	write(t, dir, "src/api/api.go", lines("api", 30))
+	commitAll(t, dir, "Initial commit")
+	git(t, dir, "tag", "root")
+
+	git(t, dir, "checkout", "-q", "-b", "feature")
+	write(t, dir, "src/api/handlers/users.go", lines("users", 80))
+	commitAll(t, dir, "Add users handler")
+	write(t, dir, "src/api/api.go", lines("api", 20)+lines("route", 15))
+	write(t, dir, "docs/api.md", lines("doc", 12))
+	commitAll(t, dir, "Document the API")
+
+	git(t, dir, "checkout", "-q", "main")
+	write(t, dir, "src/core/core.go", lines("core", 30)+lines("fix", 6))
+	write(t, dir, "README.md", lines("readme", 10)+lines("usage", 4))
+	commitAll(t, dir, "Fix the core loop so that it no longer spins when the input queue is empty and closed")
+	git(t, dir, "tag", "edit")
+
+	git(t, dir, "merge", "-q", "--no-ff", "-m", "Merge branch 'feature'", "feature")
+	if err := os.Rename(filepath.Join(dir, "src/core"), filepath.Join(dir, "lib")); err != nil {
+		t.Fatal(err)
+	}
+	commitAll(t, dir, "Move core to lib")
+	return dir
+}
+
+// A single commit is measured against its parent; the long subject is
+// trimmed to fit, and flags may come after the revision.
+func TestCommit(t *testing.T) {
+	golden(t, "commit", runCLI(t, historyRepo(t), "edit", "--files"))
+}
+
+// A root commit is measured against the empty tree.
+func TestRootCommit(t *testing.T) {
+	golden(t, "commit-root", runCLI(t, historyRepo(t), "root"))
+}
+
+// A merge commit shows everything it brought in, against its first parent.
+func TestMergeCommit(t *testing.T) {
+	golden(t, "commit-merge", runCLI(t, historyRepo(t), "--depth", "1", "HEAD~1", "--files"))
+}
+
+// A moved file counts as a delete plus an add.
+func TestMovedFile(t *testing.T) {
+	golden(t, "commit-move", runCLI(t, historyRepo(t), "HEAD", "--files"))
+}
+
+func TestBadRevision(t *testing.T) {
+	golden(t, "bad-revision", runCLI(t, historyRepo(t), "foo"))
+}
+
+func TestRevisionArgs(t *testing.T) {
+	dir := historyRepo(t)
+	for _, tt := range []struct {
+		args []string
+		code int
+		msg  string
+	}{
+		{[]string{"HEAD", "root"}, 2, "blast-radius: too many revisions: HEAD root\n"},
+		{[]string{"HEAD", "--files", "root"}, 2, "blast-radius: too many revisions: HEAD root\n"},
+		{[]string{"src"}, 2, "blast-radius: 'src' is not a revision (use '-- src' to filter by path)\n"},
+		{[]string{"HEAD", "--", "src", "--files"}, 0, ""}, // everything after -- is a pathspec
+		{[]string{"--", "HEAD", "foo"}, 0, ""},
+	} {
+		t.Chdir(dir)
+		var stdout, stderr bytes.Buffer
+		code := run(tt.args, &stdout, &stderr, testEnv(t))
+		if code != tt.code || !strings.HasPrefix(stderr.String(), tt.msg) || (tt.code == 0) != (stderr.Len() == 0) {
+			t.Errorf("%q: exit %d, stderr %q", tt.args, code, stderr.String())
+		}
+	}
+}
+
+// Outside a repo, a revision argument fails with git's message, exit 1.
+func TestRevisionNotARepo(t *testing.T) {
+	got := runCLI(t, t.TempDir(), "HEAD")
+	if !strings.Contains(got, "not a git repository") || !strings.HasSuffix(got, "-- exit 1 --\n") {
+		t.Errorf("got %q", got)
 	}
 }
 

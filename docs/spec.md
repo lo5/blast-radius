@@ -78,7 +78,9 @@ Rules:
   them relative to the current directory, so `-- .` means "here".
 - Flags may come before or after the revision argument, but not after `--`.
   Go's `flag` package stops at the first positional argument, so parse in a loop:
-  parse flags, take one positional, then parse the rest.
+  parse flags, take one positional, then parse the rest. Split the arguments at
+  the first `--` before parsing, so a flag value of `--` must be written as
+  `--flag=--`.
 - If the single argument is not a valid revision, fail with exit 2 and suggest
   `--`, the same way git handles ambiguous arguments:
   `blast-radius: 'foo' is not a revision (use '-- foo' to filter by path)`.
@@ -143,7 +145,12 @@ Header label: `working tree vs HEAD`.
 4. If it's a root commit: `git diff <emptytree> <sha> ...`.
 
 Header label: `<short sha> <subject>` from `git log -1 --format='%h %s'`. Trim
-the subject so the header fits the terminal width.
+the subject from the end with `…` so the header fits the terminal width; the
+short sha is always kept, and `…` remains even when there is no room at all.
+
+Outside a repository, git's own error is reported (exit 1) rather than the
+non-revision error. A revision that names something other than a commit, such
+as a tree, is a non-revision argument.
 
 ### 5.3 Ranges
 

@@ -1,0 +1,12 @@
+-- stderr --
+blast-radius: 'foo' is not a revision (use '-- foo' to filter by path)
+Usage of blast-radius:
+  -color string
+    	use color: auto, always or never (default "auto")
+  -depth int
+    	maximum tree levels to show; 0 = unlimited (default 3)
+  -files
+    	show individual files
+  -sort string
+    	sort siblings by churn or name (default "churn")
+-- exit 2 --

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -32,19 +33,32 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 	depth := fs.Int("depth", 3, "maximum tree levels to show; 0 = unlimited")
 	files := fs.Bool("files", false, "show individual files")
 	sortBy := fs.String("sort", "churn", "sort siblings by churn or name")
-	if err := fs.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return 0
-		}
-		return 2
-	}
 	usageError := func(format string, a ...any) int {
 		fmt.Fprintf(stderr, "blast-radius: "+format+"\n", a...)
 		fs.Usage()
 		return 2
 	}
-	if fs.NArg() > 0 {
-		return usageError("unexpected argument %q", fs.Arg(0))
+	// Everything after "--" is a pathspec. Before it, flags may come before
+	// or after the revision, so parse flags, take a positional, and repeat.
+	var pathspecs []string
+	if i := slices.Index(args, "--"); i >= 0 {
+		args, pathspecs = args[:i], args[i+1:]
+	}
+	var revs []string
+	for {
+		if err := fs.Parse(args); err != nil {
+			if errors.Is(err, flag.ErrHelp) {
+				return 0
+			}
+			return 2
+		}
+		if fs.NArg() == 0 {
+			break
+		}
+		revs, args = append(revs, fs.Arg(0)), fs.Args()[1:]
+	}
+	if len(revs) > 1 {
+		return usageError("too many revisions: %s", strings.Join(revs, " "))
 	}
 	if *depth < 0 {
 		return usageError("invalid --depth %d: must be 0 or more", *depth)
@@ -56,7 +70,14 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 		return usageError("invalid --color %q: must be auto, always or never", *color)
 	}
 
-	diff, err := gitdiff.Uncommitted(gitdiff.Git{Env: env}, nil)
+	rev := ""
+	if len(revs) == 1 {
+		rev = revs[0]
+	}
+	diff, err := gitdiff.Measure(gitdiff.Git{Env: env}, rev, pathspecs)
+	if notRev := (gitdiff.NotRevisionError{}); errors.As(err, &notRev) {
+		return usageError("%v", err)
+	}
 	if err != nil {
 		fmt.Fprintf(stderr, "blast-radius: %v\n", err)
 		return 1
@@ -67,7 +88,7 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 	root := tree.Build(diff.Files)
 	tree.Shape(root, tree.Options{Files: *files, ByName: *sortBy == "name", Depth: *depth})
 	useColor := render.UseColor(*color, isTerminal(stdout), getenv(env, "NO_COLOR"))
-	io.WriteString(stdout, render.Render(diff.Label, root, termWidth(stdout, env), useColor))
+	io.WriteString(stdout, render.Render(diff.Label, diff.Subject, root, termWidth(stdout, env), useColor))
 	return 0
 }
 
