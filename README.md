@@ -31,6 +31,9 @@ deletions.
 go install github.com/lo5/blast-radius/cmd/blast-radius@latest
 ```
 
+From a checkout, `make build` writes `bin/blast-radius` and `make install` installs it into
+`$(go env GOPATH)/bin`. `make test` runs the tests and `make clean` removes `bin/`.
+
 Requires Go 1.27+ to build and `git` 2.28+ on `PATH`. Supported on macOS and Linux; Windows is
 best-effort.
 
