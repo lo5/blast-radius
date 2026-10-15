@@ -1,0 +1,5 @@
+-- stderr --
+blast-radius: flag provided but not defined: -nope
+usage: blast-radius [flags] [<revision> | <A>..<B> | <A>...<B>] [-- <pathspec>...]
+Run 'blast-radius --help' for more information.
+-- exit 2 --

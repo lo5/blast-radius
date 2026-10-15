@@ -97,6 +97,14 @@ Rules:
 | `--version`                  |         | Print version and exit.                                                 |
 | `-h`, `--help`               |         | Print usage and exit.                                                   |
 
+`-h`/`--help` prints the full usage on stdout and exits 0: the invocation
+forms, the flags, and how exclude globs match (§5.4). It is handled before the
+revision and flag values are checked, so `blast-radius foo -h` prints help;
+after `--`, `-h` is a pathspec. Usage errors (exit 2) print
+`blast-radius: <message>` and a short usage on stderr: the synopsis line plus
+`Run 'blast-radius --help' for more information.` Errors from Go's `flag`
+package, such as an unknown flag, get the same treatment.
+
 ## 5. Choosing what to measure
 
 All git commands run from the current directory. Every diff command includes
@@ -328,8 +336,11 @@ Columns, separated by two spaces:
 - Never print partial output on stdout and then fail. Collect all data before
   rendering.
 - `--version` prints `blast-radius <version> — https://game-over.org`. The
-  version comes from `runtime/debug.ReadBuildInfo()` (the module version for
-  `go install`, otherwise `devel`).
+  version comes from `runtime/debug.ReadBuildInfo()`: the main module version,
+  or `devel` when it is empty or `(devel)`. `go install …@v1.2.3` gives
+  `v1.2.3`; `go build` in a git checkout gives the pseudo-version Go stamps,
+  such as `v0.0.0-20261015183158-8291da149308+dirty`. `--help` wins over
+  `--version`.
 
 ## 9. Project layout
 

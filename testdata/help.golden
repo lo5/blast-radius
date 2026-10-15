@@ -1,0 +1,22 @@
+usage: blast-radius [flags] [<revision> | <A>..<B> | <A>...<B>] [-- <pathspec>...]
+
+Show how many lines changed in each directory of a git repository.
+
+  blast-radius                 uncommitted changes (staged, unstaged, untracked) vs HEAD
+  blast-radius <revision>      one commit vs its first parent
+  blast-radius <A>..<B>        diff between the two endpoints
+  blast-radius <A>...<B>       diff from merge-base(A, B) to B
+  blast-radius ... -- <path>   only the given pathspecs, relative to the current directory
+
+Flags:
+  --depth N                    maximum tree levels to show; 0 = unlimited (default 3)
+  --files                      show individual files
+  --sort churn|name            sort siblings by churn or name (default churn)
+  --exclude GLOB               exclude paths matching GLOB; repeatable
+  --color auto|always|never    use color (default auto)
+  --version                    print the version and exit
+  -h, --help                   print this help and exit
+
+Exclude globs are relative to the current directory unless they start with
+':/' (relative to the repository root). '*' does not cross '/': use '**/*.md'
+for Markdown files at any depth.

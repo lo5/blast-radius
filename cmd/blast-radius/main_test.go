@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"testing"
 )
@@ -420,8 +421,46 @@ func TestBadFlagValues(t *testing.T) {
 		var stdout, stderr bytes.Buffer
 		code := run(tt.args, &stdout, &stderr, nil)
 		if code != 2 || stdout.Len() != 0 || !strings.Contains(stderr.String(), tt.msg) ||
-			!strings.Contains(stderr.String(), "-sort") {
+			!strings.HasSuffix(stderr.String(), usage) {
 			t.Errorf("%v: exit %d, stdout %q, stderr %q", tt.args, code, stdout.String(), stderr.String())
+		}
+	}
+}
+
+// -h and --help print the full usage on stdout and exit 0, wherever they
+// appear before "--" and even with an invalid revision.
+func TestHelp(t *testing.T) {
+	dir := historyRepo(t)
+	golden(t, "help", runCLI(t, dir, "--help"))
+	for _, args := range [][]string{{"-h"}, {"-help"}, {"foo", "-h"}, {"HEAD", "--files", "--help"}} {
+		if got := runCLI(t, dir, args...); got != help {
+			t.Errorf("%q: got %q", args, got)
+		}
+	}
+	if got := runCLI(t, dir, "--", "-h"); got == help {
+		t.Errorf("-h after -- printed help")
+	}
+}
+
+// Unknown flags print the error and the short usage, exit 2.
+func TestUnknownFlag(t *testing.T) {
+	golden(t, "unknown-flag", runCLI(t, t.TempDir(), "--nope"))
+}
+
+func TestVersion(t *testing.T) {
+	golden(t, "version", runCLI(t, t.TempDir(), "--version"))
+	for _, tt := range []struct {
+		info *debug.BuildInfo
+		ok   bool
+		want string
+	}{
+		{&debug.BuildInfo{Main: debug.Module{Version: "v1.2.3"}}, true, "v1.2.3"},
+		{&debug.BuildInfo{Main: debug.Module{Version: "(devel)"}}, true, "devel"},
+		{&debug.BuildInfo{}, true, "devel"},
+		{nil, false, "devel"},
+	} {
+		if got := version(tt.info, tt.ok); got != tt.want {
+			t.Errorf("version(%v, %v) = %q, want %q", tt.info, tt.ok, got, tt.want)
 		}
 	}
 }

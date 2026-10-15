@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,6 +20,36 @@ import (
 	"github.com/lo5/blast-radius/internal/tree"
 )
 
+// usage is the short usage, printed after usage errors.
+const usage = `usage: blast-radius [flags] [<revision> | <A>..<B> | <A>...<B>] [-- <pathspec>...]
+Run 'blast-radius --help' for more information.
+`
+
+// help is the full usage, printed by -h and --help.
+const help = `usage: blast-radius [flags] [<revision> | <A>..<B> | <A>...<B>] [-- <pathspec>...]
+
+Show how many lines changed in each directory of a git repository.
+
+  blast-radius                 uncommitted changes (staged, unstaged, untracked) vs HEAD
+  blast-radius <revision>      one commit vs its first parent
+  blast-radius <A>..<B>        diff between the two endpoints
+  blast-radius <A>...<B>       diff from merge-base(A, B) to B
+  blast-radius ... -- <path>   only the given pathspecs, relative to the current directory
+
+Flags:
+  --depth N                    maximum tree levels to show; 0 = unlimited (default 3)
+  --files                      show individual files
+  --sort churn|name            sort siblings by churn or name (default churn)
+  --exclude GLOB               exclude paths matching GLOB; repeatable
+  --color auto|always|never    use color (default auto)
+  --version                    print the version and exit
+  -h, --help                   print this help and exit
+
+Exclude globs are relative to the current directory unless they start with
+':/' (relative to the repository root). '*' does not cross '/': use '**/*.md'
+for Markdown files at any depth.
+`
+
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, os.Environ()))
 }
@@ -28,11 +59,14 @@ func main() {
 // and for settings such as COLUMNS.
 func run(args []string, stdout, stderr io.Writer, env []string) int {
 	fs := flag.NewFlagSet("blast-radius", flag.ContinueOnError)
-	fs.SetOutput(stderr)
+	fs.SetOutput(io.Discard) // usageError reports parse errors
 	color := fs.String("color", "auto", "use color: auto, always or never")
 	depth := fs.Int("depth", 3, "maximum tree levels to show; 0 = unlimited")
 	files := fs.Bool("files", false, "show individual files")
 	sortBy := fs.String("sort", "churn", "sort siblings by churn or name")
+	showHelp := fs.Bool("help", false, "print help and exit")
+	fs.BoolVar(showHelp, "h", false, "print help and exit")
+	showVersion := fs.Bool("version", false, "print the version and exit")
 	var excludes []string
 	fs.Func("exclude", "exclude paths matching a glob; repeatable", func(glob string) error {
 		excludes = append(excludes, glob)
@@ -40,7 +74,7 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 	})
 	usageError := func(format string, a ...any) int {
 		fmt.Fprintf(stderr, "blast-radius: "+format+"\n", a...)
-		fs.Usage()
+		io.WriteString(stderr, usage)
 		return 2
 	}
 	// Everything after "--" is a pathspec. Before it, flags may come before
@@ -52,15 +86,21 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 	var revs []string
 	for {
 		if err := fs.Parse(args); err != nil {
-			if errors.Is(err, flag.ErrHelp) {
-				return 0
-			}
-			return 2
+			return usageError("%v", err)
 		}
 		if fs.NArg() == 0 {
 			break
 		}
 		revs, args = append(revs, fs.Arg(0)), fs.Args()[1:]
+	}
+	if *showHelp {
+		io.WriteString(stdout, help)
+		return 0
+	}
+	if *showVersion {
+		info, ok := debug.ReadBuildInfo()
+		fmt.Fprintf(stdout, "blast-radius %s — https://game-over.org\n", version(info, ok))
+		return 0
 	}
 	if len(revs) > 1 {
 		return usageError("too many revisions: %s", strings.Join(revs, " "))
@@ -100,6 +140,15 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 	out := render.Render(label, diff.Subject, filter(pathspecs, excludes), root, termWidth(stdout, env), useColor)
 	io.WriteString(stdout, out)
 	return 0
+}
+
+// version returns the module version from the build info, or "devel" when
+// there is none, as in a test binary or a build outside module mode.
+func version(info *debug.BuildInfo, ok bool) string {
+	if !ok || info.Main.Version == "" || info.Main.Version == "(devel)" {
+		return "devel"
+	}
+	return info.Main.Version
 }
 
 // filter returns the excludes and pathspecs as they would be typed, such as
