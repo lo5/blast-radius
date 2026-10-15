@@ -16,3 +16,7 @@ Spec: §4, §5.4, §7.2 filter suffix.
 - [ ] No glob code in the tool
 - [ ] Header appends ` · -- <pathspecs/excludes>` as typed
 - [ ] Goldens: `-- src/`, `--exclude`, run from a subdirectory equals run from the root
+
+## Note 2026-10-15T18:21:09Z
+
+From wuzan6: Git.Untracked substitutes ':/' only when pathspecs is empty. With excludes but no positive pathspec, ls-files would again be limited to the cwd while git diff covers the whole repo -- prepend ':/' whenever there is no positive pathspec (e.g. when only excludes were given).

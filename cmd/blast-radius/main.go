@@ -61,6 +61,9 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 		fmt.Fprintf(stderr, "blast-radius: %v\n", err)
 		return 1
 	}
+	for _, w := range diff.Warnings {
+		fmt.Fprintf(stderr, "blast-radius: warning: %s\n", w)
+	}
 	root := tree.Build(diff.Files)
 	tree.Shape(root, tree.Options{Files: *files, ByName: *sortBy == "name", Depth: *depth})
 	useColor := render.UseColor(*color, isTerminal(stdout), getenv(env, "NO_COLOR"))

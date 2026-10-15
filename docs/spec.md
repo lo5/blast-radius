@@ -116,13 +116,19 @@ rather than hard-coded, so SHA-256 repositories work too.
    This covers staged and unstaged changes in one diff.
 2. Untracked files:
    `git ls-files --others --exclude-standard --full-name -z -- <pathspecs>`.
+   - With no pathspecs, pass `:/` instead: unlike `git diff`, `ls-files` only
+     lists the current directory by default.
    - Skip entries ending in `/` (nested repositories).
    - `os.Lstat` each file relative to the repo root. Skip anything that isn't a
      regular file, such as symlinks or sockets.
    - Treat the file as binary, and skip it, if the first 8 KiB contains a NUL byte.
    - Otherwise count lines by streaming the file: lines = number of `\n`, plus 1
      if the file is non-empty and doesn't end in `\n`. All lines count as added.
-3. Unborn `HEAD` (a repo with no commits yet): diff against the empty tree
+     Empty files are dropped.
+   - If a file can't be read, print `blast-radius: warning: cannot read <path>: <reason>`
+     on stderr and skip it.
+3. Unborn `HEAD` (a repo with no commits yet, detected by
+   `git rev-parse --verify --quiet HEAD` failing): diff against the empty tree
    instead of `HEAD`.
 
 Header label: `working tree vs HEAD`.

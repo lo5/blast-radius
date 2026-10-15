@@ -144,8 +144,50 @@ func TestUncommitted(t *testing.T) {
 	if err := os.Remove(filepath.Join(dir, "docs/guide.md")); err != nil {
 		t.Fatal(err)
 	}
+	// Untracked: counted as all added, except ignored ones.
+	write(t, dir, ".gitignore", "*.log\n")
+	write(t, dir, "src/api/new.go", lines("new", 30))
+	write(t, dir, "scripts/run.sh", "#!/bin/sh\necho run")
+	write(t, dir, "debug.log", lines("log", 100))
 
 	golden(t, "uncommitted", runCLI(t, dir))
+}
+
+// A repo with no commits diffs staged files against the empty tree.
+func TestNoCommits(t *testing.T) {
+	dir := newRepo(t)
+	write(t, dir, "src/main.go", lines("main", 20))
+	write(t, dir, "README.md", lines("readme", 5))
+	git(t, dir, "add", "src")
+	golden(t, "no-commits", runCLI(t, dir))
+}
+
+// Binary files are dropped, tracked or untracked.
+func TestBinaryIgnored(t *testing.T) {
+	dir := newRepo(t)
+	write(t, dir, "assets/logo.png", "\x89PNG\x00old")
+	write(t, dir, "src/a.go", lines("a", 10))
+	commitAll(t, dir, "initial")
+	write(t, dir, "assets/logo.png", "\x89PNG\x00new\n")
+	write(t, dir, "assets/icon.ico", "\x00\x00\x01\x00")
+	write(t, dir, "src/a.go", lines("a", 12))
+	golden(t, "binary-ignored", runCLI(t, dir))
+}
+
+// An untracked file that can't be read is skipped with a warning.
+func TestUnreadableUntracked(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root can read anything")
+	}
+	dir := newRepo(t)
+	write(t, dir, "a.txt", "a\n")
+	commitAll(t, dir, "initial")
+	write(t, dir, "b.txt", lines("b", 3))
+	write(t, dir, "secret.txt", lines("secret", 3))
+	if err := os.Chmod(filepath.Join(dir, "secret.txt"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	golden(t, "unreadable-untracked", runCLI(t, dir))
 }
 
 func TestNoChanges(t *testing.T) {

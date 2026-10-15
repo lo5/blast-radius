@@ -1,0 +1,6 @@
+working tree vs HEAD · 1 file · +3 -0
+
+b.txt  ████████████████████████████████████████  +3 -0  1 file  100%
+-- stderr --
+blast-radius: warning: cannot read secret.txt: permission denied
+-- exit 0 --
