@@ -1,0 +1,23 @@
+working tree vs HEAD · 11 files · +395 -1
+
+src/                     +325 -0  6 files  82%
+├─ api/                  +250 -0  4 files  63%
+│  ├─ handlers/          +200 -0  2 files  51%
+│  │  ├─ users.go        +120 -0   1 file  30%
+│  │  └─ orders.go        +80 -0   1 file  20%
+│  ├─ middleware/         +40 -0   1 file  10%
+│  │  └─ auth.go          +40 -0   1 file  10%
+│  └─ api.go              +10 -0   1 file   3%
+├─ core/                  +60 -0   1 file  15%
+│  └─ core.go             +60 -0   1 file  15%
+└─ internal/util/         +15 -0   1 file   4%
+   └─ strings.go          +15 -0   1 file   4%
+java/src/main/com/acme/   +30 -0   1 file   8%
+└─ App.java               +30 -0   1 file   8%
+docs/                     +25 -0   1 file   6%
+└─ guide.md               +25 -0   1 file   6%
+scripts/                   +7 -0   1 file   2%
+└─ build.sh                +7 -0   1 file   2%
+tools/                     +7 -0   1 file   2%
+└─ gen.sh                  +7 -0   1 file   2%
+go.mod                     +1 -1   1 file   1%

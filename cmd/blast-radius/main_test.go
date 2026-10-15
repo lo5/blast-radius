@@ -168,3 +168,64 @@ func TestUnexpectedArgument(t *testing.T) {
 		t.Errorf("exit %d, stdout %q", code, stdout.String())
 	}
 }
+
+// shapeRepo returns a repo with uncommitted changes spread over nested
+// directories, collapsible chains and siblings with equal churn.
+func shapeRepo(t *testing.T) string {
+	t.Helper()
+	dir := newRepo(t)
+	write(t, dir, "go.mod", "module example.com/x\n\ngo 1.27\n")
+	write(t, dir, "Makefile", lines("make", 5))
+	commitAll(t, dir, "initial")
+
+	write(t, dir, "go.mod", "module example.com/x\n\ngo 1.27.1\n")
+	write(t, dir, "src/api/handlers/users.go", lines("users", 120))
+	write(t, dir, "src/api/handlers/orders.go", lines("orders", 80))
+	write(t, dir, "src/api/middleware/auth.go", lines("auth", 40))
+	write(t, dir, "src/api/api.go", lines("api", 10))
+	write(t, dir, "src/core/core.go", lines("core", 60))
+	write(t, dir, "src/internal/util/strings.go", lines("strings", 15))
+	write(t, dir, "java/src/main/com/acme/App.java", lines("app", 30))
+	write(t, dir, "docs/guide.md", lines("guide", 25))
+	write(t, dir, "scripts/build.sh", lines("build", 7))
+	write(t, dir, "tools/gen.sh", lines("gen", 7))
+	git(t, dir, "add", "-A")
+	return dir
+}
+
+func TestShapeDefault(t *testing.T) { golden(t, "shape-default", runCLI(t, shapeRepo(t))) }
+
+func TestShapeFiles(t *testing.T) {
+	golden(t, "shape-files", runCLI(t, shapeRepo(t), "--files"))
+}
+
+func TestShapeDepth1(t *testing.T) {
+	golden(t, "shape-depth-1", runCLI(t, shapeRepo(t), "--depth", "1"))
+}
+
+func TestShapeDepth0(t *testing.T) {
+	// With --files the tree is four levels deep, one more than the default.
+	golden(t, "shape-depth-0", runCLI(t, shapeRepo(t), "--depth=0", "--files"))
+}
+
+func TestShapeSortName(t *testing.T) {
+	golden(t, "shape-sort-name", runCLI(t, shapeRepo(t), "--sort", "name"))
+}
+
+func TestBadFlagValues(t *testing.T) {
+	for _, tt := range []struct {
+		args []string
+		msg  string
+	}{
+		{[]string{"--sort", "size"}, `blast-radius: invalid --sort "size": must be churn or name`},
+		{[]string{"--depth", "-1"}, "blast-radius: invalid --depth -1: must be 0 or more"},
+		{[]string{"--depth", "x"}, `invalid value "x" for flag -depth`},
+	} {
+		var stdout, stderr bytes.Buffer
+		code := run(tt.args, &stdout, &stderr, nil)
+		if code != 2 || stdout.Len() != 0 || !strings.Contains(stderr.String(), tt.msg) ||
+			!strings.Contains(stderr.String(), "-sort") {
+			t.Errorf("%v: exit %d, stdout %q, stderr %q", tt.args, code, stdout.String(), stderr.String())
+		}
+	}
+}

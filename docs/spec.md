@@ -201,7 +201,10 @@ type Node struct {
    Files at the repo root are always shown.
 2. **Collapse chains.** If a directory's only child is another directory and it
    has no directly visible files, merge the two. Repeat until nothing changes.
-   The label joins the names: `internal/util/`.
+   The label joins the names: `internal/util/`. The merged row keeps the outer
+   directory's totals, so files hidden in step 1 still count toward it. Only
+   directories merge: with `--files`, `a/b/c.go` shows as `a/b/` with `c.go`
+   below it. The root is never merged into its child.
 3. **Sort.** At every level, sort by churn (highest first, ties by name ascending).
    With `--sort name`, sort by name ascending. Directories and files are mixed
    together.

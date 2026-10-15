@@ -1,13 +1,8 @@
 working tree vs HEAD · 6 files · +1,528 -51
 
-README.md             +2  -1   1 file  <1%
-docs/                 +0 -25   1 file   2%
-└─ guide.md           +0 -25   1 file   2%
-my dir/               +1  -0   1 file  <1%
-└─ notes ü.txt        +1  -0   1 file  <1%
-src/              +1,525 -25  3 files  98%
-├─ api/           +1,520 -20  2 files  98%
-│  ├─ handler.go     +20 -20   1 file   3%
-│  └─ routes.go   +1,500  -0   1 file  95%
-└─ core/              +5  -5   1 file   1%
-   └─ core.go         +5  -5   1 file   1%
+src/       +1,525 -25  3 files  98%
+├─ api/    +1,520 -20  2 files  98%
+└─ core/       +5  -5   1 file   1%
+docs/          +0 -25   1 file   2%
+README.md      +2  -1   1 file  <1%
+my dir/        +1  -0   1 file  <1%

@@ -25,16 +25,28 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 	fs := flag.NewFlagSet("blast-radius", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.String("color", "auto", "use color: auto, always or never")
+	depth := fs.Int("depth", 3, "maximum tree levels to show; 0 = unlimited")
+	files := fs.Bool("files", false, "show individual files")
+	sortBy := fs.String("sort", "churn", "sort siblings by churn or name")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}
 		return 2
 	}
-	if fs.NArg() > 0 {
-		fmt.Fprintf(stderr, "blast-radius: unexpected argument %q\n", fs.Arg(0))
+	usageError := func(format string, a ...any) int {
+		fmt.Fprintf(stderr, "blast-radius: "+format+"\n", a...)
 		fs.Usage()
 		return 2
+	}
+	if fs.NArg() > 0 {
+		return usageError("unexpected argument %q", fs.Arg(0))
+	}
+	if *depth < 0 {
+		return usageError("invalid --depth %d: must be 0 or more", *depth)
+	}
+	if *sortBy != "churn" && *sortBy != "name" {
+		return usageError("invalid --sort %q: must be churn or name", *sortBy)
 	}
 
 	diff, err := gitdiff.Uncommitted(gitdiff.Git{Env: env}, nil)
@@ -42,6 +54,8 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 		fmt.Fprintf(stderr, "blast-radius: %v\n", err)
 		return 1
 	}
-	io.WriteString(stdout, render.Render(diff.Label, tree.Build(diff.Files)))
+	root := tree.Build(diff.Files)
+	tree.Shape(root, tree.Options{Files: *files, ByName: *sortBy == "name", Depth: *depth})
+	io.WriteString(stdout, render.Render(diff.Label, root))
 	return 0
 }
