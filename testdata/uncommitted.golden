@@ -1,8 +1,8 @@
 working tree vs HEAD · 6 files · +1,528 -51
 
-src/       +1,525 -25  3 files  98%
-├─ api/    +1,520 -20  2 files  98%
-└─ core/       +5  -5   1 file   1%
-docs/          +0 -25   1 file   2%
-README.md      +2  -1   1 file  <1%
-my dir/        +1  -0   1 file  <1%
+src/       ████████████████████████████████████████  +1,525 -25  3 files  98%
+├─ api/    ███████████████████████████████████████▊  +1,520 -20  2 files  98%
+└─ core/   ▎                                             +5  -5   1 file   1%
+docs/      ▋                                             +0 -25   1 file   2%
+README.md  ▏                                             +2  -1   1 file  <1%
+my dir/    ▏                                             +1  -0   1 file  <1%

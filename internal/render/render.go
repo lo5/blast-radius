@@ -13,8 +13,9 @@ import (
 )
 
 // Render returns the full output: the header, a blank line, then one row per
-// node below root, or "no changes" if there is nothing to show.
-func Render(label string, root *tree.Node) string {
+// node below root, or "no changes" if there is nothing to show. Rows are
+// fitted to a terminal of the given width.
+func Render(label string, root *tree.Node, termWidth int) string {
 	var b strings.Builder
 	b.WriteString(Header(label, root))
 	b.WriteString("\n\n")
@@ -23,21 +24,29 @@ func Render(label string, root *tree.Node) string {
 		return b.String()
 	}
 	rows := flatten(nil, root.Children, "", true)
-	var nameW, addW, delW, filesW, pctW int
+	var nameW, addW, delW, filesW, pctW, maxChurn int
 	for i := range rows {
 		r := &rows[i]
 		r.add = "+" + Thousands(r.node.Added)
 		r.del = "-" + Thousands(r.node.Deleted)
 		r.files = Plural(r.node.Files, "file")
 		r.pct = Percent(r.node.Churn(), root.Churn())
-		nameW = max(nameW, width(r.name))
+		nameW = max(nameW, width(r.prefix+r.label))
 		addW = max(addW, width(r.add))
 		delW = max(delW, width(r.del))
 		filesW = max(filesW, width(r.files))
 		pctW = max(pctW, width(r.pct))
+		maxChurn = max(maxChurn, r.node.Churn())
 	}
+	// Everything but the name and bar columns, plus the four separators.
+	rest := addW + 1 + delW + filesW + pctW + 4*2
+	if nameW+rest+minBarWidth > termWidth {
+		nameW = min(nameW, termWidth*2/5)
+	}
+	barW := min(max(termWidth-nameW-rest, minBarWidth), maxBarWidth)
 	for _, r := range rows {
-		b.WriteString(padRight(r.name, nameW))
+		b.WriteString(padRight(truncate(r.prefix, r.label, nameW), nameW))
+		b.WriteString("  " + padRight(Bar(Eighths(r.node.Churn(), maxChurn, barW)), barW))
 		b.WriteString("  " + padLeft(r.add, addW) + " " + padLeft(r.del, delW))
 		b.WriteString("  " + padLeft(r.files, filesW))
 		b.WriteString("  " + padLeft(r.pct, pctW))
@@ -53,7 +62,7 @@ func Header(label string, root *tree.Node) string {
 }
 
 type row struct {
-	name                 string // tree prefix plus label
+	prefix, label        string // tree prefix; name, with / for directories
 	node                 *tree.Node
 	add, del, files, pct string
 }
@@ -73,7 +82,7 @@ func flatten(rows []row, nodes []*tree.Node, indent string, top bool) []row {
 		if n.IsDir {
 			label += "/"
 		}
-		rows = append(rows, row{name: indent + branch + label, node: n})
+		rows = append(rows, row{prefix: indent + branch, label: label, node: n})
 		rows = flatten(rows, n.Children, indent+cont, false)
 	}
 	return rows
@@ -107,6 +116,16 @@ func Percent(churn, total int) string {
 		return "<1%"
 	}
 	return strconv.Itoa(p) + "%"
+}
+
+// truncate returns prefix+label, shortening label from the end with … so the
+// result is at most w wide. The prefix is always kept.
+func truncate(prefix, label string, w int) string {
+	if width(prefix+label) <= w {
+		return prefix + label
+	}
+	keep := max(0, w-width(prefix)-1)
+	return prefix + string([]rune(label)[:keep]) + "…"
 }
 
 func width(s string) int { return utf8.RuneCountInString(s) }

@@ -265,8 +265,10 @@ Columns, separated by two spaces:
   otherwise from `$COLUMNS`, otherwise 80.
 - Bar width W = terminal width − (all other columns + separators), limited to
   the range [10, 40].
-- If the name column alone would push the row past the terminal width, cap it at
-  40% of the width and shorten names from the end with `…`. Keep the tree prefix.
+- If the name column would push the row past the terminal width even with the
+  minimum bar width, cap it at 40% of the width and shorten names from the end
+  with `…`. Keep the tree prefix. On very narrow terminals the row can still be
+  wider than the terminal, since the bar never drops below 10 cells.
 - Scale: `maxChurn` is the largest churn among the rows that will be printed.
   Bar length in eighths of a cell = `round(churn / maxChurn × W × 8)`, at least 1
   when churn > 0. Draw full cells as `█`, followed by one partial cell from

@@ -86,9 +86,15 @@ func commitAll(t *testing.T, dir, msg string) {
 // returns stdout, plus stderr and the exit code when either is notable.
 func runCLI(t *testing.T, dir string, args ...string) string {
 	t.Helper()
+	return runCLIEnv(t, dir, testEnv(t), args...)
+}
+
+// runCLIEnv is runCLI with the given environment.
+func runCLIEnv(t *testing.T, dir string, env []string, args ...string) string {
+	t.Helper()
 	t.Chdir(dir)
 	var stdout, stderr bytes.Buffer
-	code := run(append([]string{"--color=never"}, args...), &stdout, &stderr, testEnv(t))
+	code := run(append([]string{"--color=never"}, args...), &stdout, &stderr, env)
 	out := stdout.String()
 	if stderr.Len() > 0 || code != 0 {
 		out += fmt.Sprintf("-- stderr --\n%s-- exit %d --\n", stderr.String(), code)
@@ -226,6 +232,31 @@ func TestBadFlagValues(t *testing.T) {
 		if code != 2 || stdout.Len() != 0 || !strings.Contains(stderr.String(), tt.msg) ||
 			!strings.Contains(stderr.String(), "-sort") {
 			t.Errorf("%v: exit %d, stdout %q, stderr %q", tt.args, code, stdout.String(), stderr.String())
+		}
+	}
+}
+
+// A narrow terminal truncates long names and keeps the minimum bar width.
+func TestNarrow(t *testing.T) {
+	golden(t, "narrow", runCLIEnv(t, shapeRepo(t), append(testEnv(t), "COLUMNS=50")))
+}
+
+func TestTermWidth(t *testing.T) {
+	var buf bytes.Buffer
+	for _, tt := range []struct {
+		env  []string
+		want int
+	}{
+		{nil, 80},
+		{[]string{"COLUMNS=120"}, 120},
+		{[]string{"COLUMNS=60", "COLUMNS=70"}, 70},
+		{[]string{"COLUMNS="}, 80},
+		{[]string{"COLUMNS=abc"}, 80},
+		{[]string{"COLUMNS=0"}, 80},
+		{[]string{"COLUMNSX=50"}, 80},
+	} {
+		if got := termWidth(&buf, tt.env); got != tt.want {
+			t.Errorf("termWidth(%q) = %d, want %d", tt.env, got, tt.want)
 		}
 	}
 }

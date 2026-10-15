@@ -8,6 +8,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
+	"strings"
+
+	"golang.org/x/term"
 
 	"github.com/lo5/blast-radius/internal/gitdiff"
 	"github.com/lo5/blast-radius/internal/render"
@@ -56,6 +60,31 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 	}
 	root := tree.Build(diff.Files)
 	tree.Shape(root, tree.Options{Files: *files, ByName: *sortBy == "name", Depth: *depth})
-	io.WriteString(stdout, render.Render(diff.Label, root))
+	io.WriteString(stdout, render.Render(diff.Label, root, termWidth(stdout, env)))
 	return 0
+}
+
+// termWidth returns the terminal width: from stdout if it is a terminal,
+// else from $COLUMNS, else 80.
+func termWidth(stdout io.Writer, env []string) int {
+	if f, ok := stdout.(*os.File); ok && term.IsTerminal(int(f.Fd())) {
+		if w, _, err := term.GetSize(int(f.Fd())); err == nil && w > 0 {
+			return w
+		}
+	}
+	if w, err := strconv.Atoi(getenv(env, "COLUMNS")); err == nil && w > 0 {
+		return w
+	}
+	return 80
+}
+
+// getenv returns the last value of key in env, or "".
+func getenv(env []string, key string) string {
+	v := ""
+	for _, kv := range env {
+		if k, val, ok := strings.Cut(kv, "="); ok && k == key {
+			v = val
+		}
+	}
+	return v
 }
