@@ -35,7 +35,8 @@ hands exclude globs to git's own pathspec matching.
 **Non-goals (v1)**
 
 - JSON, HTML, or other output formats.
-- An interactive or full-screen TUI.
+- An interactive or full-screen TUI. `--watch` (§7.6) only clears and redraws
+  the screen on a timer; it takes no input.
 - Rename/move detection. A move counts as a delete plus an add.
 - Measuring binary files.
 - Default excludes such as vendor/, lockfiles, or generated code.
@@ -94,6 +95,7 @@ Rules:
 | `--sort churn\|name`         | `churn` | Sort order of siblings.                                                 |
 | `--exclude GLOB`             | none    | Exclude matching paths. Repeatable.                                     |
 | `--color auto\|always\|never`| `auto`  | Whether to use color.                                                   |
+| `--watch[=DUR]`              | off     | Redraw every DUR until interrupted; bare `--watch` means `5s` (§7.6).   |
 | `--version`                  |         | Print version and exit.                                                 |
 | `-h`, `--help`               |         | Print usage and exit.                                                   |
 
@@ -264,15 +266,17 @@ go.mod             ▏                             +4   -3    1 file  <1%
 ### 7.2 Header
 
 ```
-<label> · [<N> commits · ]<F> files · +<added> -<deleted>[ · <excludes> -- <pathspecs>]
+<label> · [<N> commits · ]<F> files · +<added> -<deleted>[ · <excludes> -- <pathspecs>][ · every <DUR> · <HH:MM:SS>]
 ```
 
 - Labels are defined in §5.1–5.3. The commit count appears only for ranges.
 - If pathspecs or excludes are set, append them as they would be typed so
   readers know the output is filtered: each exclude as `--exclude GLOB`, then
   `--` and the pathspecs, e.g. `· --exclude *.md -- src/`. With only pathspecs
-  this is `· -- src/`. The suffix is never trimmed; a commit subject is trimmed
-  to make room for it.
+  this is `· -- src/`. With `--watch`, append `· every <DUR> · <HH:MM:SS>`:
+  the interval as typed (`5s` for a bare `--watch`) and the local time the frame
+  was drawn. The suffix is never trimmed; a commit subject is trimmed to make
+  room for it.
 - Print a blank line after the header.
 - Format numbers with thousands separators, in the header and in rows.
 - Use `file`/`commit` when the count is 1.
@@ -322,6 +326,34 @@ Columns, separated by two spaces:
   it falls on.
 - Without color, bars show as one block. The counts still show the +/- split.
 
+### 7.6 Watch
+
+`--watch` reruns the whole measurement and rendering on a timer, so the display
+follows the repository as it changes. It is plain polling: no filesystem events
+and no new dependencies.
+
+- `--watch` uses a 5 s interval; `--watch=DUR` takes a Go duration
+  (`time.ParseDuration`: `500ms`, `5s`, `1m`) above 0. Anything else, such as
+  `--watch=5` or `--watch=0s`, is a usage error (exit 2):
+  `blast-radius: invalid --watch=5: must be a duration above 0, such as 5s`.
+  Like a bool flag, the value must be attached with `=`: in `--watch 5s`, `5s`
+  is the revision argument. `--help` says so.
+- It works in every mode. The revision or range is resolved again on every
+  refresh, so `main..HEAD` follows new commits. Terminal width is read again
+  on every refresh too.
+- stdout must be a terminal; otherwise it is a usage error (exit 2):
+  `blast-radius: --watch needs a terminal`.
+- Each frame is one write to stdout: cursor home and clear screen
+  (`ESC[H ESC[2J`), then the normal output. Output taller than the terminal
+  just scrolls.
+- An error on the first refresh is reported and exits exactly as without
+  `--watch` (§8). On later refreshes the frame is `blast-radius: <error>` in
+  place of the header and tree, and the next refresh tries again.
+- Warnings still go to stderr before the frame is drawn, so the clear wipes
+  them; there is no special handling.
+- It runs until interrupted. There is no signal handling: Ctrl-C kills the
+  process as usual and the last frame stays on screen.
+
 ## 8. Edge cases and exit codes
 
 | Situation                                          | Behavior                                                       | Exit |
@@ -332,6 +364,8 @@ Columns, separated by two spaces:
 | Not inside a git repo / git command fails          | `blast-radius: ` + git's stderr (trimmed)                      | 1    |
 | Unreadable untracked file                          | Warning on stderr, skip the file, continue                     | 0    |
 | Bad flag value, >1 revision, non-revision argument | Message plus short usage on stderr                             | 2    |
+| `--watch` with stdout not a terminal               | `blast-radius: --watch needs a terminal` plus short usage      | 2    |
+| Git fails on a later `--watch` refresh             | Error shown as that frame; retried on the next refresh         | —    |
 
 - Never print partial output on stdout and then fail. Collect all data before
   rendering.
@@ -415,6 +449,8 @@ and filesystem I/O is in `gitdiff`.
   - not a git repo (exit 1)
   - bad revision (exit 2)
   - one golden file with `--color=always` to lock in the SGR output
+  - `--watch` usage errors: invalid durations and stdout not a terminal. The
+    refresh loop needs a real terminal and is checked by hand.
 
 ## 11. Possible future work (out of scope for v1)
 

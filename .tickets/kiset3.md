@@ -1,6 +1,6 @@
 ---
 id: kiset3
-status: open
+status: closed
 type: feature
 effort: normal
 created: 2026-10-15T18:56:58Z
@@ -21,3 +21,7 @@ created: 2026-10-15T18:56:58Z
 - Ctrl-C: default signal handling, last frame stays.
 - Spec: relax the TUI non-goal, flags table, help, §7.2 header, §8, §10.
 - Tests: non-TTY exit 2, bad durations, flag parsing unit test; loop checked by hand.
+
+## Note 2026-10-15T18:59:11Z
+
+Done: spec §7.6, README, help, tests. Loop verified by hand in a Python pty (redraw on file change; mid-watch error shown then recovers).

@@ -14,6 +14,8 @@ Flags:
   --sort churn|name            sort siblings by churn or name (default churn)
   --exclude GLOB               exclude paths matching GLOB; repeatable
   --color auto|always|never    use color (default auto)
+  --watch[=DUR]                redraw every DUR until interrupted (default 5s);
+                               write --watch=1m, not --watch 1m
   --version                    print the version and exit
   -h, --help                   print this help and exit
 

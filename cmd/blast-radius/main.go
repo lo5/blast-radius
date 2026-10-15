@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/term"
 
@@ -42,6 +43,8 @@ Flags:
   --sort churn|name            sort siblings by churn or name (default churn)
   --exclude GLOB               exclude paths matching GLOB; repeatable
   --color auto|always|never    use color (default auto)
+  --watch[=DUR]                redraw every DUR until interrupted (default 5s);
+                               write --watch=1m, not --watch 1m
   --version                    print the version and exit
   -h, --help                   print this help and exit
 
@@ -67,6 +70,8 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 	showHelp := fs.Bool("help", false, "print help and exit")
 	fs.BoolVar(showHelp, "h", false, "print help and exit")
 	showVersion := fs.Bool("version", false, "print the version and exit")
+	var every optString
+	fs.Var(&every, "watch", "redraw every DUR until interrupted")
 	var excludes []string
 	fs.Func("exclude", "exclude paths matching a glob; repeatable", func(glob string) error {
 		excludes = append(excludes, glob)
@@ -114,12 +119,47 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 	if *color != "auto" && *color != "always" && *color != "never" {
 		return usageError("invalid --color %q: must be auto, always or never", *color)
 	}
+	if every == "true" {
+		every = "5s"
+	}
+	interval, err := time.ParseDuration(string(every))
+	if every != "" && (err != nil || interval <= 0) {
+		return usageError("invalid --watch=%s: must be a duration above 0, such as 5s", every)
+	}
+	if every != "" && !isTerminal(stdout) {
+		return usageError("--watch needs a terminal")
+	}
 
 	rev := ""
 	if len(revs) == 1 {
 		rev = revs[0]
 	}
-	diff, err := gitdiff.Measure(gitdiff.Git{Env: env}, rev, gitdiff.Pathspecs(pathspecs, excludes))
+	useColor := render.UseColor(*color, isTerminal(stdout), getenv(env, "NO_COLOR"))
+	// frame measures and renders once, writing warnings to stderr.
+	frame := func() (string, error) {
+		diff, err := gitdiff.Measure(gitdiff.Git{Env: env}, rev, gitdiff.Pathspecs(pathspecs, excludes))
+		if err != nil {
+			return "", err
+		}
+		for _, w := range diff.Warnings {
+			fmt.Fprintf(stderr, "blast-radius: warning: %s\n", w)
+		}
+		label := diff.Label
+		if diff.Range {
+			label += " · " + render.Plural(diff.Commits, "commit")
+		}
+		root := tree.Build(diff.Files)
+		tree.Shape(root, tree.Options{Files: *files, ByName: *sortBy == "name", Depth: *depth})
+		suffix := filter(pathspecs, excludes)
+		if every != "" {
+			if suffix != "" {
+				suffix += " · "
+			}
+			suffix += "every " + string(every) + " · " + time.Now().Format("15:04:05")
+		}
+		return render.Render(label, diff.Subject, suffix, root, termWidth(stdout, env), useColor), nil
+	}
+	out, err := frame()
 	if notRev := (gitdiff.NotRevisionError{}); errors.As(err, &notRev) {
 		return usageError("%v", err)
 	}
@@ -127,20 +167,28 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 		fmt.Fprintf(stderr, "blast-radius: %v\n", err)
 		return 1
 	}
-	for _, w := range diff.Warnings {
-		fmt.Fprintf(stderr, "blast-radius: warning: %s\n", w)
+	if every == "" {
+		io.WriteString(stdout, out)
+		return 0
 	}
-	label := diff.Label
-	if diff.Range {
-		label += " · " + render.Plural(diff.Commits, "commit")
+	// Watch until interrupted. Each frame clears the screen, which also
+	// wipes any warnings, and later errors are shown in place of the tree.
+	for {
+		io.WriteString(stdout, "\x1b[H\x1b[2J"+out)
+		time.Sleep(interval)
+		if out, err = frame(); err != nil {
+			out = fmt.Sprintf("blast-radius: %v\n", err)
+		}
 	}
-	root := tree.Build(diff.Files)
-	tree.Shape(root, tree.Options{Files: *files, ByName: *sortBy == "name", Depth: *depth})
-	useColor := render.UseColor(*color, isTerminal(stdout), getenv(env, "NO_COLOR"))
-	out := render.Render(label, diff.Subject, filter(pathspecs, excludes), root, termWidth(stdout, env), useColor)
-	io.WriteString(stdout, out)
-	return 0
 }
+
+// optString is a string flag that may also be given bare, like a bool flag,
+// in which case its value is "true".
+type optString string
+
+func (s *optString) String() string     { return string(*s) }
+func (s *optString) Set(v string) error { *s = optString(v); return nil }
+func (s *optString) IsBoolFlag() bool   { return true }
 
 // version returns the module version from the build info, or "devel" when
 // there is none, as in a test binary or a build outside module mode.

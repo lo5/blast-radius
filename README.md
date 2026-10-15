@@ -62,6 +62,7 @@ to the current directory. Output is the same from any directory in the repo.
 | `--sort churn\|name`          | `churn` | Sort siblings by churn or name                |
 | `--exclude GLOB`              | none    | Exclude paths matching GLOB; repeatable       |
 | `--color auto\|always\|never` | `auto`  | Use color (`auto` honors `NO_COLOR`)          |
+| `--watch[=DUR]`               | off     | Redraw every DUR (`5s`) until Ctrl-C          |
 | `--version`                   |         | Print the version and exit                    |
 | `-h`, `--help`                |         | Print help and exit                           |
 

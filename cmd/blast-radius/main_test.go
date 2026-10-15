@@ -417,6 +417,12 @@ func TestBadFlagValues(t *testing.T) {
 		{[]string{"--depth", "-1"}, "blast-radius: invalid --depth -1: must be 0 or more"},
 		{[]string{"--depth", "x"}, `invalid value "x" for flag -depth`},
 		{[]string{"--color", "yes"}, `blast-radius: invalid --color "yes": must be auto, always or never`},
+		{[]string{"--watch=5"}, "blast-radius: invalid --watch=5: must be a duration above 0, such as 5s"},
+		{[]string{"--watch=0s"}, "blast-radius: invalid --watch=0s: must be a duration above 0, such as 5s"},
+		{[]string{"--watch=-1s"}, "blast-radius: invalid --watch=-1s: must be a duration above 0, such as 5s"},
+		{[]string{"--watch=false"}, "blast-radius: invalid --watch=false: must be a duration above 0, such as 5s"},
+		{[]string{"--watch"}, "blast-radius: --watch needs a terminal"},
+		{[]string{"--watch=1m"}, "blast-radius: --watch needs a terminal"},
 	} {
 		var stdout, stderr bytes.Buffer
 		code := run(tt.args, &stdout, &stderr, nil)
