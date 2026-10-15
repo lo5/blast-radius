@@ -5,6 +5,8 @@ Usage of blast-radius:
     	use color: auto, always or never (default "auto")
   -depth int
     	maximum tree levels to show; 0 = unlimited (default 3)
+  -exclude value
+    	exclude paths matching a glob; repeatable
   -files
     	show individual files
   -sort string

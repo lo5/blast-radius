@@ -33,6 +33,11 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 	depth := fs.Int("depth", 3, "maximum tree levels to show; 0 = unlimited")
 	files := fs.Bool("files", false, "show individual files")
 	sortBy := fs.String("sort", "churn", "sort siblings by churn or name")
+	var excludes []string
+	fs.Func("exclude", "exclude paths matching a glob; repeatable", func(glob string) error {
+		excludes = append(excludes, glob)
+		return nil
+	})
 	usageError := func(format string, a ...any) int {
 		fmt.Fprintf(stderr, "blast-radius: "+format+"\n", a...)
 		fs.Usage()
@@ -74,7 +79,7 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 	if len(revs) == 1 {
 		rev = revs[0]
 	}
-	diff, err := gitdiff.Measure(gitdiff.Git{Env: env}, rev, pathspecs)
+	diff, err := gitdiff.Measure(gitdiff.Git{Env: env}, rev, gitdiff.Pathspecs(pathspecs, excludes))
 	if notRev := (gitdiff.NotRevisionError{}); errors.As(err, &notRev) {
 		return usageError("%v", err)
 	}
@@ -92,8 +97,22 @@ func run(args []string, stdout, stderr io.Writer, env []string) int {
 	root := tree.Build(diff.Files)
 	tree.Shape(root, tree.Options{Files: *files, ByName: *sortBy == "name", Depth: *depth})
 	useColor := render.UseColor(*color, isTerminal(stdout), getenv(env, "NO_COLOR"))
-	io.WriteString(stdout, render.Render(label, diff.Subject, root, termWidth(stdout, env), useColor))
+	out := render.Render(label, diff.Subject, filter(pathspecs, excludes), root, termWidth(stdout, env), useColor)
+	io.WriteString(stdout, out)
 	return 0
+}
+
+// filter returns the excludes and pathspecs as they would be typed, such as
+// `--exclude *.md -- src/`, or "" when the output is not filtered.
+func filter(pathspecs, excludes []string) string {
+	var parts []string
+	for _, glob := range excludes {
+		parts = append(parts, "--exclude "+glob)
+	}
+	if len(pathspecs) > 0 {
+		parts = append(append(parts, "--"), pathspecs...)
+	}
+	return strings.Join(parts, " ")
 }
 
 // termWidth returns the terminal width: from stdout if it is a terminal,

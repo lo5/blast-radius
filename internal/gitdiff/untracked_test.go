@@ -130,4 +130,13 @@ func TestUntracked(t *testing.T) {
 	if !reflect.DeepEqual(warnings, wantWarn) {
 		t.Errorf("warnings = %q, want %q", warnings, wantWarn)
 	}
+
+	// Only excludes: still the whole repo, minus the excluded paths.
+	files, _, err = Git{Env: env}.Untracked(root, Pathspecs(nil, []string{":/.gitignore"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []FileStat{{Path: "a/new.txt", Added: 2}}; !reflect.DeepEqual(files, want) {
+		t.Errorf("with excludes: files = %+v, want %+v", files, want)
+	}
 }

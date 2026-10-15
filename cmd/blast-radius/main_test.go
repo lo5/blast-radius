@@ -360,6 +360,53 @@ func TestShapeSortName(t *testing.T) {
 	golden(t, "shape-sort-name", runCLI(t, shapeRepo(t), "--sort", "name"))
 }
 
+// filterRepo is shapeRepo plus untracked files, so filters apply to both
+// git diff and git ls-files.
+func filterRepo(t *testing.T) string {
+	t.Helper()
+	dir := shapeRepo(t)
+	write(t, dir, "src/api/untracked.go", lines("untracked", 9))
+	write(t, dir, "docs/untracked.md", lines("untracked", 4))
+	return dir
+}
+
+// Pathspecs after -- limit the output and show in the header.
+func TestPathspec(t *testing.T) {
+	golden(t, "pathspec", runCLI(t, filterRepo(t), "--", "src/"))
+}
+
+// --exclude is repeatable and removes matching paths, tracked or untracked.
+func TestExclude(t *testing.T) {
+	golden(t, "exclude", runCLI(t, filterRepo(t), "--exclude", "src/api/**", "--exclude=*.mod"))
+}
+
+// Pathspecs and excludes work together, for ranges too.
+func TestRangeFiltered(t *testing.T) {
+	golden(t, "range-filtered", runCLI(t, historyRepo(t), "edit..feature", "--exclude", "src/api/handlers/**", "--", "src/"))
+}
+
+// Running from a subdirectory gives the same output as from the root, for
+// every mode, including excludes relative to the root.
+func TestSubdirectory(t *testing.T) {
+	for _, tt := range []struct {
+		dir  string
+		args []string
+	}{
+		{filterRepo(t), nil},
+		{filterRepo(t), []string{"--exclude", ":/docs/**"}},
+		{historyRepo(t), []string{"edit"}},
+		{historyRepo(t), []string{"root..feature"}},
+	} {
+		want := runCLI(t, tt.dir, tt.args...)
+		if got := runCLI(t, filepath.Join(tt.dir, "src", "api"), tt.args...); got != want {
+			t.Errorf("%q from src/api:\n%s\nfrom the root:\n%s", tt.args, got, want)
+		}
+		if tt.args == nil {
+			golden(t, "subdirectory", want)
+		}
+	}
+}
+
 func TestBadFlagValues(t *testing.T) {
 	for _, tt := range []struct {
 		args []string

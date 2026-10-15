@@ -1,0 +1,9 @@
+working tree vs HEAD · 7 files · +148 -0 · --exclude src/api/** --exclude *.mod
+
+src/                     ████████████████████████████████████████  +75 -0  2 files  51%
+├─ core/                 ████████████████████████████████          +60 -0   1 file  41%
+└─ internal/util/        ████████                                  +15 -0   1 file  10%
+java/src/main/com/acme/  ████████████████                          +30 -0   1 file  20%
+docs/                    ███████████████▌                          +29 -0  2 files  20%
+scripts/                 ███▊                                       +7 -0   1 file   5%
+tools/                   ███▊                                       +7 -0   1 file   5%

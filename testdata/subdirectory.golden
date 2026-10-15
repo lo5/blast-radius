@@ -1,0 +1,13 @@
+working tree vs HEAD · 13 files · +408 -1
+
+src/                     ████████████████████████████████████████  +334 -0  7 files  82%
+├─ api/                  ███████████████████████████████           +259 -0  5 files  63%
+│  ├─ handlers/          ████████████████████████                  +200 -0  2 files  49%
+│  └─ middleware/        ████▊                                      +40 -0   1 file  10%
+├─ core/                 ███████▏                                   +60 -0   1 file  15%
+└─ internal/util/        █▊                                         +15 -0   1 file   4%
+java/src/main/com/acme/  ███▋                                       +30 -0   1 file   7%
+docs/                    ███▌                                       +29 -0  2 files   7%
+scripts/                 ▉                                           +7 -0   1 file   2%
+tools/                   ▉                                           +7 -0   1 file   2%
+go.mod                   ▎                                           +1 -1   1 file  <1%

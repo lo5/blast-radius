@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -15,9 +16,10 @@ import (
 // as added. root is the repo root. Files that can't be read are skipped, with
 // a warning for each.
 func (g Git) Untracked(root string, pathspecs []string) (files []FileStat, warnings []string, err error) {
-	if len(pathspecs) == 0 {
-		// Without a pathspec ls-files only lists the current directory.
-		pathspecs = []string{":/"}
+	if !slices.ContainsFunc(pathspecs, func(p string) bool { return !isExclude(p) }) {
+		// Without a positive pathspec ls-files only lists the current
+		// directory, while git diff --no-relative covers the whole repo.
+		pathspecs = append([]string{":/"}, pathspecs...)
 	}
 	args := append([]string{"ls-files", "--others", "--exclude-standard", "--full-name", "-z", "--"}, pathspecs...)
 	out, err := g.Run(args...)

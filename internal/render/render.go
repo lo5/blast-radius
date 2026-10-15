@@ -16,9 +16,9 @@ import (
 // node below root, or "no changes" if there is nothing to show. The header
 // and rows are fitted to a terminal of the given width. With color, bars and
 // counts are green for added lines and red for deleted lines.
-func Render(label, subject string, root *tree.Node, termWidth int, color bool) string {
+func Render(label, subject, filter string, root *tree.Node, termWidth int, color bool) string {
 	var b strings.Builder
-	b.WriteString(Header(label, subject, root, termWidth))
+	b.WriteString(Header(label, subject, filter, root, termWidth))
 	b.WriteString("\n\n")
 	if root.Files == 0 {
 		b.WriteString("no changes\n")
@@ -62,11 +62,14 @@ func Render(label, subject string, root *tree.Node, termWidth int, color bool) s
 	return b.String()
 }
 
-// Header returns `<label>[ <subject>] · <F> files · +<added> -<deleted>`.
+// Header returns `<label>[ <subject>] · <F> files · +<added> -<deleted>[ · <filter>]`.
 // The subject, if any, is shortened with … so the header fits termWidth.
-func Header(label, subject string, root *tree.Node, termWidth int) string {
+func Header(label, subject, filter string, root *tree.Node, termWidth int) string {
 	rest := fmt.Sprintf(" · %s · +%s -%s",
 		Plural(root.Files, "file"), Thousands(root.Added), Thousands(root.Deleted))
+	if filter != "" {
+		rest += " · " + filter
+	}
 	if subject != "" {
 		label += " " + truncate("", subject, termWidth-width(label+" "+rest))
 	}

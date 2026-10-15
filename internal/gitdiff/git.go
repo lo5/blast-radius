@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"slices"
 	"strings"
 )
 
@@ -53,6 +54,30 @@ func (g Git) RepoRoot() (string, error) {
 func (g Git) EmptyTree() (string, error) {
 	out, err := g.Run("hash-object", "-t", "tree", "--stdin")
 	return strings.TrimSpace(string(out)), err
+}
+
+// Pathspecs returns paths followed by one `:(exclude,glob)GLOB` pathspec per
+// exclude, so git does all the glob matching. Like other pathspecs, a glob is
+// relative to the current directory unless it starts with ":/".
+func Pathspecs(paths, excludes []string) []string {
+	specs := slices.Clone(paths)
+	for _, glob := range excludes {
+		if rest, ok := strings.CutPrefix(glob, ":/"); ok {
+			specs = append(specs, ":(exclude,glob,top)"+rest)
+		} else {
+			specs = append(specs, ":(exclude,glob)"+glob)
+		}
+	}
+	return specs
+}
+
+// isExclude reports whether pathspec excludes paths rather than selecting them.
+func isExclude(pathspec string) bool {
+	if magic, ok := strings.CutPrefix(pathspec, ":("); ok {
+		magic, _, _ = strings.Cut(magic, ")")
+		return slices.Contains(strings.Split(magic, ","), "exclude")
+	}
+	return strings.HasPrefix(pathspec, ":!") || strings.HasPrefix(pathspec, ":^")
 }
 
 // diff runs `git diff <revs> <diffFlags> -- <pathspecs>` and parses the result.

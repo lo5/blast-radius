@@ -1,6 +1,7 @@
 package gitdiff
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -28,5 +29,34 @@ func TestEmptyTree(t *testing.T) {
 	}
 	if want := "4b825dc642cb6eb9a060e54bf8d69288fbee4904"; got != want {
 		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestPathspecs(t *testing.T) {
+	got := Pathspecs([]string{"src/", "."}, []string{"*.md", ":/docs/**"})
+	want := []string{"src/", ".", ":(exclude,glob)*.md", ":(exclude,glob,top)docs/**"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	if got := Pathspecs(nil, nil); len(got) != 0 {
+		t.Errorf("got %q, want none", got)
+	}
+}
+
+func TestIsExclude(t *testing.T) {
+	for spec, want := range map[string]bool{
+		"src/":                false,
+		":/":                  false,
+		":(glob)**/*.go":      false,
+		":(exclude,glob)*.md": true,
+		":(top,exclude)docs":  true,
+		":!vendor":            true,
+		":^vendor":            true,
+		":(excludes)x":        false,
+		"(exclude)not-magic":  false,
+	} {
+		if got := isExclude(spec); got != want {
+			t.Errorf("isExclude(%q) = %v, want %v", spec, got, want)
+		}
 	}
 }

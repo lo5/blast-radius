@@ -118,8 +118,9 @@ rather than hard-coded, so SHA-256 repositories work too.
    This covers staged and unstaged changes in one diff.
 2. Untracked files:
    `git ls-files --others --exclude-standard --full-name -z -- <pathspecs>`.
-   - With no pathspecs, pass `:/` instead: unlike `git diff`, `ls-files` only
-     lists the current directory by default.
+   - With no positive pathspecs (none at all, or only excludes), put `:/`
+     first: unlike `git diff`, `ls-files` only lists the current directory by
+     default.
    - Skip entries ending in `/` (nested repositories).
    - `os.Lstat` each file relative to the repo root. Skip anything that isn't a
      regular file, such as symlinks or sockets.
@@ -174,8 +175,10 @@ Header label: the range as the user typed it, e.g. `main..feature · 12 commits`
 Each `--exclude GLOB` becomes the pathspec `:(exclude,glob)GLOB` and is added
 after the user's pathspecs, for both `git diff` and `git ls-files`. Git does all
 the glob matching, so the tool contains no glob code. Like git, globs are
-relative to the current directory unless they start with `:/`. Document this in
-`--help`.
+relative to the current directory unless they start with `:/`; such a glob
+becomes `:(exclude,glob,top)<rest>`, since `:/` can't follow other magic. As
+with git's `glob` magic, `*` doesn't cross `/`: use `**/*.md` for Markdown files
+at any depth. Document this in `--help`.
 
 ### 5.5 Parsing numstat
 
@@ -253,12 +256,15 @@ go.mod             ▏                             +4   -3    1 file  <1%
 ### 7.2 Header
 
 ```
-<label> · [<N> commits · ]<F> files · +<added> -<deleted>[ · -- <pathspecs/excludes>]
+<label> · [<N> commits · ]<F> files · +<added> -<deleted>[ · <excludes> -- <pathspecs>]
 ```
 
 - Labels are defined in §5.1–5.3. The commit count appears only for ranges.
-- If pathspecs or excludes are set, append them as typed so readers know the
-  output is filtered.
+- If pathspecs or excludes are set, append them as they would be typed so
+  readers know the output is filtered: each exclude as `--exclude GLOB`, then
+  `--` and the pathspecs, e.g. `· --exclude *.md -- src/`. With only pathspecs
+  this is `· -- src/`. The suffix is never trimmed; a commit subject is trimmed
+  to make room for it.
 - Print a blank line after the header.
 - Format numbers with thousands separators, in the header and in rows.
 - Use `file`/`commit` when the count is 1.
