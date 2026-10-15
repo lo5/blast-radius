@@ -1,6 +1,6 @@
 ---
 id: begog2
-status: open
+status: closed
 type: feature
 effort: normal
 children:
