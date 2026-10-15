@@ -1,0 +1,3 @@
+-- stderr --
+blast-radius: fatal: not a git repository (or any of the parent directories): .git
+-- exit 1 --

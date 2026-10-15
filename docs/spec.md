@@ -288,7 +288,7 @@ Columns, separated by two spaces:
 
 | Situation                                          | Behavior                                                       | Exit |
 |----------------------------------------------------|----------------------------------------------------------------|------|
-| Nothing to show after filtering                    | Print the header line, then `no changes`                       | 0    |
+| Nothing to show after filtering                    | Print the header line, a blank line, then `no changes`         | 0    |
 | Success                                            | Header and tree                                                | 0    |
 | `git` not on `PATH`                                | `blast-radius: git not found in PATH`                          | 1    |
 | Not inside a git repo / git command fails          | `blast-radius: ` + git's stderr (trimmed)                      | 1    |
@@ -352,6 +352,9 @@ and filesystem I/O is in `gitdiff`.
 - Run the CLI's `run(args, stdout, stderr, env) int` entry point in-process,
   with `--color=never` and `COLUMNS=100` so output is deterministic. Compare
   against `testdata/*.golden`. `go test ./... -update` rewrites the golden files.
+  A golden file holds stdout, followed by `-- stderr --`, stderr and
+  `-- exit N --` when stderr is non-empty or the exit code is non-zero. Every
+  test package accepts `-update` so the flag works with `./...`.
 - Scenarios:
   - uncommitted with staged, unstaged, and untracked files
   - uncommitted in a repo with no commits yet
